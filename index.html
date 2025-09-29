@@ -446,10 +446,17 @@
                     } else if (data.msg === 'process_completed') {
                         eventSource.close();
                         
+                        console.log('完整输出数据:', JSON.stringify(data.output, null, 2));
+                        
                         // 获取结果
                         if (data.output && data.output.data && data.output.data[0]) {
                             const fileData = data.output.data[0];
+                            console.log('文件数据:', fileData);
                             const glbUrl = fileData.url || fileData.path;
+                            
+                            if (!glbUrl) {
+                                throw new Error('未能获取模型文件URL');
+                            }
                             
                             // 构造完整URL
                             currentModelUrl = glbUrl.startsWith('http') ? glbUrl : `${API_URL}${glbUrl}`;

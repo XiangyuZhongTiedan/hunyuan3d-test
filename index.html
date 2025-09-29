@@ -396,6 +396,7 @@
                 // 第一步：加入队列
                 const payload = {
                     data: [
+                        null,  // caption (text input)
                         { url: base64Image },  // image
                         null,  // mv_image_front
                         null,  // mv_image_back
@@ -410,8 +411,8 @@
                         true  // randomize_seed
                     ],
                     event_data: null,
-                    fn_index: "/shape_generation",  // 使用 api_name 而不是数字索引
-                    trigger_id: null,
+                    fn_index: 2,  // 正确的索引
+                    trigger_id: 16,
                     session_hash: sessionHash
                 };
                 

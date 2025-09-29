@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 3D模型生成器</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1200px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .upload-box {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .upload-box:hover {
+            border-color: #764ba2;
+            background: #f0f1ff;
+        }
+
+        .upload-box.dragover {
+            border-color: #764ba2;
+            background: #e8e9ff;
+            transform: scale(1.02);
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 10px;
+        }
+
+        .preview-image {
+            max-width: 300px;
+            max-height: 300px;
+            margin: 20px auto;
+            display: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.1em;
+            color: #666;
+            min-height: 30px;
+        }
+
+        .progress-container {
+            display: none;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .viewer-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        model-viewer {
+            width: 100%;
+            height: 600px;
+            background-color: #f5f5f5;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .actions {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+
+        .actions button {
+            margin: 0 10px;
+        }
+
+        .params {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .params label {
+            display: block;
+            margin: 10px 0;
+            color: #333;
+        }
+
+        .params input[type="range"] {
+            width: 100%;
+        }
+
+        .toggle-params {
+            background: none;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-params:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+            border-left: 4px solid #c33;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 AI 3D模型生成器</h1>
+        <p class="subtitle">上传图片，AI帮您生成精美3D模型</p>
+
+        <div class="upload-section">
+            <div class="upload-box" id="uploadBox">
+                <div class="upload-icon">📤</div>
+                <h3>点击或拖拽图片到这里</h3>
+                <p style="color: #999; margin-top: 10px;">支持 PNG, JPG 格式</p>
+                <input type="file" id="imageInput" accept="image/*">
+            </div>
+            <img id="previewImage" class="preview-image" />
+        </div>
+
+        <button class="toggle-params" onclick="toggleParams()">⚙️ 高级参数</button>
+
+        <div class="params" id="params">
+            <label>
+                推理步数: <span id="stepsValue">20</span>
+                <input type="range" id="steps" min="5" max="50" value="20" 
+                       oninput="document.getElementById('stepsValue').textContent=this.value">
+            </label>
+            <label>
+                网格分辨率: <span id="resolutionValue">256</span>
+                <input type="range" id="resolution" min="128" max="512" value="256" step="64"
+                       oninput="document.getElementById('resolutionValue').textContent=this.value">
+            </label>
+        </div>
+
+        <div style="text-align: center;">
+            <button class="button" id="generateBtn" onclick="generate()" disabled>
+                🚀 生成3D模型
+            </button>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="status" id="status"></div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText"></div>
+        </div>
+
+        <div class="viewer-container" id="viewerContainer">
+            <h3 style="text-align: center; margin-bottom: 20px;">🎉 您的3D模型</h3>
+            <model-viewer id="viewer"
+                          auto-rotate
+                          camera-controls
+                          shadow-intensity="1"
+                          exposure="1"
+                          shadow-softness="0.5">
+            </model-viewer>
+        </div>
+
+        <div class="actions" id="actions">
+            <button class="button" onclick="downloadModel()">💾 下载模型</button>
+            <button class="button" onclick="reset()">🔄 重新生成</button>
+        </div>
+    </div>
+
+    <script>
+        // 配置API地址 - 您的Cloudflare Tunnel URL
+        const API_URL = 'https://observer-payday-contest-median.trycloudflare.com';
+        
+        let selectedFile = null;
+        let currentModelUrl = null;
+
+        // 上传区域交互
+        const uploadBox = document.getElementById('uploadBox');
+        const imageInput = document.getElementById('imageInput');
+        const previewImage = document.getElementById('previewImage');
+        const generateBtn = document.getElementById('generateBtn');
+
+        uploadBox.onclick = () => imageInput.click();
+
+        imageInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                    generateBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        // 拖拽上传
+        uploadBox.ondragover = (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        };
+
+        uploadBox.ondragleave = () => {
+            uploadBox.classList.remove('dragover');
+        };
+
+        uploadBox.ondrop = (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                    generateBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        function toggleParams() {
+            const params = document.getElementById('params');
+            params.style.display = params.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+
+        async function generate() {
+            if (!selectedFile) {
+                showError('请先选择图片');
+                return;
+            }
+
+            try {
+                generateBtn.disabled = true;
+                document.getElementById('progressContainer').style.display = 'block';
+                document.getElementById('viewerContainer').style.display = 'none';
+                document.getElementById('actions').style.display = 'none';
+                
+                updateStatus('正在上传图片...');
+                updateProgress(10, '上传中...');
+
+                // 读取图片为base64
+                const reader = new FileReader();
+                reader.readAsDataURL(selectedFile);
+                
+                await new Promise((resolve) => {
+                    reader.onload = resolve;
+                });
+
+                const base64Image = reader.result;
+                
+                updateStatus('正在生成3D模型...');
+                updateProgress(30, 'AI正在工作中...');
+
+                const steps = parseInt(document.getElementById('steps').value);
+                const resolution = parseInt(document.getElementById('resolution').value);
+
+                // 调用Gradio API
+                const response = await fetch(`${API_URL}/gradio_api/run/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        data: [
+                            { data: base64Image },  // image
+                            null,  // mv_image_front
+                            null,  // mv_image_back
+                            null,  // mv_image_left
+                            null,  // mv_image_right
+                            steps,  // steps
+                            5,  // guidance_scale
+                            Math.floor(Math.random() * 10000),  // seed
+                            resolution,  // octree_resolution
+                            true,  // check_box_rembg (remove background)
+                            8000,  // num_chunks
+                            true  // randomize_seed
+                        ],
+                        fn_index: 1  // /shape_generation
+                    })
+                });
+
+                updateProgress(60, '处理中，这可能需要几分钟...');
+
+                if (!response.ok) {
+                    throw new Error('API调用失败: ' + response.statusText);
+                }
+
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                updateProgress(90, '几乎完成了...');
+
+                // 获取生成的GLB文件URL
+                if (result.data && result.data[0]) {
+                    const glbPath = result.data[0].url || result.data[0].path;
+                    currentModelUrl = API_URL + glbPath;
+                    
+                    // 显示3D模型
+                    document.getElementById('viewer').src = currentModelUrl;
+                    document.getElementById('viewerContainer').style.display = 'block';
+                    document.getElementById('actions').style.display = 'block';
+                    
+                    updateProgress(100, '✅ 完成！');
+                    updateStatus('🎉 生成成功！');
+                    
+                    setTimeout(() => {
+                        document.getElementById('progressContainer').style.display = 'none';
+                    }, 2000);
+                } else {
+                    throw new Error('未能获取生成结果');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('生成失败: ' + error.message);
+                updateStatus('');
+                document.getElementById('progressContainer').style.display = 'none';
+            } finally {
+                generateBtn.disabled = false;
+            }
+        }
+
+        function downloadModel() {
+            if (currentModelUrl) {
+                const a = document.createElement('a');
+                a.href = currentModelUrl;
+                a.download = 'model.glb';
+                a.click();
+            }
+        }
+
+        function reset() {
+            selectedFile = null;
+            currentModelUrl = null;
+            previewImage.style.display = 'none';
+            previewImage.src = '';
+            imageInput.value = '';
+            generateBtn.disabled = true;
+            document.getElementById('viewerContainer').style.display = 'none';
+            document.getElementById('actions').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+            updateStatus('');
+        }
+    </script>
+</body>
+</html>

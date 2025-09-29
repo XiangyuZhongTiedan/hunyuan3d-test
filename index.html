@@ -390,15 +390,18 @@
                 const steps = parseInt(document.getElementById('steps').value);
                 const resolution = parseInt(document.getElementById('resolution').value);
 
-                // 调用Gradio API
-                const response = await fetch(`${API_URL}/gradio_api/run/predict`, {
+                // 使用 Gradio Queue API
+                const sessionHash = Math.random().toString(36).substring(7);
+                
+                // 第一步：加入队列
+                const joinResponse = await fetch(`${API_URL}/gradio_api/queue/join`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
                         data: [
-                            { url: base64Image },  // image - 使用 url 字段传递 base64
+                            { url: base64Image },  // image
                             null,  // mv_image_front
                             null,  // mv_image_back
                             null,  // mv_image_left
@@ -407,54 +410,78 @@
                             5,  // guidance_scale
                             Math.floor(Math.random() * 10000),  // seed
                             resolution,  // octree_resolution
-                            true,  // check_box_rembg (remove background)
+                            true,  // check_box_rembg
                             8000,  // num_chunks
                             true  // randomize_seed
                         ],
-                        fn_index: 1  // /shape_generation
+                        fn_index: 1,  // /shape_generation
+                        session_hash: sessionHash
                     })
                 });
 
-                updateProgress(60, '处理中，这可能需要几分钟...');
-
-                if (!response.ok) {
-                    throw new Error('API调用失败: ' + response.statusText);
+                if (!joinResponse.ok) {
+                    throw new Error('无法加入队列');
                 }
 
-                const result = await response.json();
+                updateProgress(40, '已加入队列，等待处理...');
+
+                // 第二步：监听服务器推送事件
+                const eventSource = new EventSource(`${API_URL}/gradio_api/queue/data?session_hash=${sessionHash}`);
                 
-                if (result.error) {
-                    throw new Error(result.error);
-                }
-
-                updateProgress(90, '几乎完成了...');
-
-                // 获取生成的GLB文件URL
-                if (result.data && result.data[0]) {
-                    const glbPath = result.data[0].url || result.data[0].path;
-                    currentModelUrl = API_URL + glbPath;
+                eventSource.onmessage = async (event) => {
+                    const data = JSON.parse(event.data);
                     
-                    // 显示3D模型
-                    document.getElementById('viewer').src = currentModelUrl;
-                    document.getElementById('viewerContainer').style.display = 'block';
-                    document.getElementById('actions').style.display = 'block';
-                    
-                    updateProgress(100, '✅ 完成！');
-                    updateStatus('🎉 生成成功！');
-                    
-                    setTimeout(() => {
-                        document.getElementById('progressContainer').style.display = 'none';
-                    }, 2000);
-                } else {
-                    throw new Error('未能获取生成结果');
-                }
+                    if (data.msg === 'process_starts') {
+                        updateProgress(50, '开始生成3D模型...');
+                    } else if (data.msg === 'process_completed') {
+                        eventSource.close();
+                        
+                        // 获取结果
+                        if (data.output && data.output.data && data.output.data[0]) {
+                            const fileData = data.output.data[0];
+                            const glbUrl = fileData.url || fileData.path;
+                            
+                            // 构造完整URL
+                            currentModelUrl = glbUrl.startsWith('http') ? glbUrl : `${API_URL}${glbUrl}`;
+                            
+                            // 显示3D模型
+                            document.getElementById('viewer').src = currentModelUrl;
+                            document.getElementById('viewerContainer').style.display = 'block';
+                            document.getElementById('actions').style.display = 'block';
+                            
+                            updateProgress(100, '✅ 完成！');
+                            updateStatus('🎉 生成成功！');
+                            
+                            setTimeout(() => {
+                                document.getElementById('progressContainer').style.display = 'none';
+                            }, 2000);
+                        } else {
+                            throw new Error('未能获取生成结果');
+                        }
+                        
+                        generateBtn.disabled = false;
+                    } else if (data.msg === 'process_generating') {
+                        updateProgress(60, '生成中，请耐心等待...');
+                    } else if (data.msg === 'estimation') {
+                        const estimatedTime = Math.round(data.rank_eta || 0);
+                        updateProgress(45, `队列中... 预计等待 ${estimatedTime} 秒`);
+                    }
+                };
+                
+                eventSource.onerror = (error) => {
+                    eventSource.close();
+                    console.error('EventSource error:', error);
+                    showError('连接失败，请重试');
+                    updateStatus('');
+                    document.getElementById('progressContainer').style.display = 'none';
+                    generateBtn.disabled = false;
+                };
 
             } catch (error) {
                 console.error('Error:', error);
                 showError('生成失败: ' + error.message);
                 updateStatus('');
                 document.getElementById('progressContainer').style.display = 'none';
-            } finally {
                 generateBtn.disabled = false;
             }
         }

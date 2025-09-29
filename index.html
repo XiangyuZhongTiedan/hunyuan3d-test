@@ -398,7 +398,7 @@
                     },
                     body: JSON.stringify({
                         data: [
-                            { data: base64Image },  // image
+                            { url: base64Image },  // image - 使用 url 字段传递 base64
                             null,  // mv_image_front
                             null,  // mv_image_back
                             null,  // mv_image_left

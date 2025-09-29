@@ -394,32 +394,39 @@
                 const sessionHash = Math.random().toString(36).substring(7);
                 
                 // 第一步：加入队列
+                const payload = {
+                    data: [
+                        { url: base64Image },  // image
+                        null,  // mv_image_front
+                        null,  // mv_image_back
+                        null,  // mv_image_left
+                        null,  // mv_image_right
+                        steps,  // steps
+                        5,  // guidance_scale
+                        Math.floor(Math.random() * 10000),  // seed
+                        resolution,  // octree_resolution
+                        true,  // check_box_rembg
+                        8000,  // num_chunks
+                        true  // randomize_seed
+                    ],
+                    event_data: null,
+                    fn_index: 1,
+                    trigger_id: null,
+                    session_hash: sessionHash
+                };
+                
+                console.log('发送请求:', payload);
+                
                 const joinResponse = await fetch(`${API_URL}/gradio_api/queue/join`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        data: [
-                            { url: base64Image },  // image
-                            null,  // mv_image_front
-                            null,  // mv_image_back
-                            null,  // mv_image_left
-                            null,  // mv_image_right
-                            steps,  // steps
-                            5,  // guidance_scale
-                            Math.floor(Math.random() * 10000),  // seed
-                            resolution,  // octree_resolution
-                            true,  // check_box_rembg
-                            8000,  // num_chunks
-                            true  // randomize_seed
-                        ],
-                        fn_index: 1,
-                        session_hash: sessionHash
-                    })
+                    body: JSON.stringify(payload)
                 });
                 
-                console.log('加入队列响应:', await joinResponse.clone().json());
+                const joinResult = await joinResponse.json();
+                console.log('加入队列响应:', joinResult);
 
                 if (!joinResponse.ok) {
                     throw new Error('无法加入队列');

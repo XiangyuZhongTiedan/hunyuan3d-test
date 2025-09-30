@@ -513,35 +513,44 @@
 
                 if (result) {
                     updateProgress(90, '处理结果...');
-                    console.log('完整结果:', result);
+                    console.log('完整结果:', JSON.stringify(result, null, 2));
                     
                     // result 可能是 {data: [...]} 或者直接是数组
                     const dataArray = result.data || result;
-                    const fileData = Array.isArray(dataArray) ? dataArray[0] : dataArray;
+                    console.log('数据数组:', dataArray);
+                    console.log('数组长度:', Array.isArray(dataArray) ? dataArray.length : 'not array');
                     
-                    console.log('文件数据:', fileData);
-                    
-                    if (fileData) {
-                        currentModelUrl = fileData.url || fileData.path;
-                        
-                        if (currentModelUrl) {
-                            if (!currentModelUrl.startsWith('http')) {
-                                currentModelUrl = `${API_URL}${currentModelUrl}`;
+                    if (Array.isArray(dataArray) && dataArray.length > 0) {
+                        // 遍历数组，找到第一个有效的文件对象
+                        for (let i = 0; i < dataArray.length; i++) {
+                            console.log(`数组[${i}]:`, dataArray[i]);
+                            const item = dataArray[i];
+                            
+                            if (item && typeof item === 'object') {
+                                // 检查是否有 url 或 path 属性
+                                const url = item.url || item.path;
+                                if (url) {
+                                    currentModelUrl = url;
+                                    if (!currentModelUrl.startsWith('http')) {
+                                        currentModelUrl = `${API_URL}${currentModelUrl}`;
+                                    }
+                                    
+                                    console.log('找到模型URL:', currentModelUrl);
+                                    updateProgress(100, '✅ 完成！');
+                                    viewer.src = currentModelUrl;
+                                    viewerContainer.style.display = 'block';
+                                    actions.style.display = 'flex';
+
+                                    setTimeout(() => {
+                                        progressContainer.style.display = 'none';
+                                    }, 2000);
+                                    return; // 成功，退出
+                                }
                             }
-
-                            updateProgress(100, '✅ 完成！');
-                            viewer.src = currentModelUrl;
-                            viewerContainer.style.display = 'block';
-                            actions.style.display = 'flex';
-
-                            setTimeout(() => {
-                                progressContainer.style.display = 'none';
-                            }, 2000);
-                        } else {
-                            throw new Error('未找到模型文件URL');
                         }
+                        throw new Error('数组中未找到有效的模型文件');
                     } else {
-                        throw new Error('返回数据格式错误');
+                        throw new Error('返回数据格式错误: ' + JSON.stringify(dataArray));
                     }
                 } else {
                     throw new Error('未获取到生成结果');

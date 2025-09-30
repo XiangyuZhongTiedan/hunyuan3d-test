@@ -545,7 +545,19 @@
                                     console.log('找到模型URL:', currentModelUrl);
                                     console.log('文件大小:', fileData.size, 'bytes', '≈', (fileData.size / 1024 / 1024).toFixed(2), 'MB');
                                     
-                                    updateProgress(95, '⏳ 正在加载模型...');
+                                    // 尝试上传到 file.io 以获得更快的下载速度
+                                    updateProgress(95, '📤 正在优化下载...');
+                                    try {
+                                        const fastUrl = await uploadToFileIO(currentModelUrl, fileData.orig_name || 'model.glb');
+                                        if (fastUrl) {
+                                            console.log('✅ 已上传到 file.io:', fastUrl);
+                                            currentModelUrl = fastUrl;
+                                        }
+                                    } catch (e) {
+                                        console.warn('上传到 file.io 失败，使用原始 URL:', e);
+                                    }
+                                    
+                                    updateProgress(98, '⏳ 正在加载模型...');
                                     
                                     // 显示查看器
                                     viewer.src = currentModelUrl;
@@ -590,6 +602,41 @@
                 btnIcon.classList.remove('spinner');
                 btnIcon.textContent = '🚀';
                 btnText.textContent = '生成3D模型';
+            }
+        }
+
+        // 上传文件到 file.io 以获得更快的公网 URL
+        async function uploadToFileIO(sourceUrl, filename) {
+            console.log('开始上传到 file.io...');
+            try {
+                // 1. 下载文件为 Blob
+                const response = await fetch(sourceUrl);
+                if (!response.ok) throw new Error('下载文件失败');
+                const blob = await response.blob();
+                console.log('文件已下载，大小:', blob.size, 'bytes');
+
+                // 2. 上传到 file.io
+                const formData = new FormData();
+                formData.append('file', blob, filename);
+
+                const uploadResponse = await fetch('https://file.io', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) throw new Error('上传失败');
+                
+                const result = await uploadResponse.json();
+                console.log('file.io 响应:', result);
+
+                if (result.success && result.link) {
+                    return result.link;
+                } else {
+                    throw new Error('未获取到下载链接');
+                }
+            } catch (error) {
+                console.error('uploadToFileIO 错误:', error);
+                return null;
             }
         }
 

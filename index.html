@@ -504,12 +504,41 @@
             }
         }
 
-        function downloadModel() {
-            if (currentModelUrl) {
+        async function downloadModel() {
+            if (!currentModelUrl) {
+                showError('没有可下载的模型');
+                return;
+            }
+            
+            try {
+                updateStatus('正在准备下载...');
+                
+                // 使用 fetch 获取文件，避免 CORS 问题
+                const response = await fetch(currentModelUrl);
+                if (!response.ok) {
+                    throw new Error('下载失败');
+                }
+                
+                const blob = await response.blob();
+                
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = currentModelUrl;
+                a.href = url;
                 a.download = 'model.glb';
+                document.body.appendChild(a);
                 a.click();
+                
+                // 清理
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    updateStatus('');
+                }, 100);
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                showError('下载失败: ' + error.message);
             }
         }
 

@@ -527,23 +527,48 @@
                             const item = dataArray[i];
                             
                             if (item && typeof item === 'object') {
-                                // 检查是否有 url 或 path 属性
-                                const url = item.url || item.path;
+                                // Gradio 返回格式: {value: {url, path, ...}, __type__: 'update'}
+                                const fileData = item.value || item;
+                                const url = fileData.url || fileData.path;
+                                
                                 if (url) {
                                     currentModelUrl = url;
+                                    
+                                    // 如果是相对路径，添加 API_URL
                                     if (!currentModelUrl.startsWith('http')) {
                                         currentModelUrl = `${API_URL}${currentModelUrl}`;
                                     }
                                     
+                                    // 直接使用返回的 URL（已经包含完整路径）
+                                    // Cloudflare Tunnel 可能传输慢，但这是目前唯一的方式
+                                    
                                     console.log('找到模型URL:', currentModelUrl);
-                                    updateProgress(100, '✅ 完成！');
+                                    console.log('文件大小:', fileData.size, 'bytes', '≈', (fileData.size / 1024 / 1024).toFixed(2), 'MB');
+                                    
+                                    updateProgress(95, '⏳ 正在加载模型...');
+                                    
+                                    // 显示查看器
                                     viewer.src = currentModelUrl;
                                     viewerContainer.style.display = 'block';
                                     actions.style.display = 'flex';
-
+                                    
+                                    // 监听模型加载完成
+                                    viewer.addEventListener('load', () => {
+                                        updateProgress(100, '✅ 完成！');
+                                        setTimeout(() => {
+                                            progressContainer.style.display = 'none';
+                                        }, 2000);
+                                    }, { once: true });
+                                    
+                                    // 超时保护：60秒后自动隐藏进度条
                                     setTimeout(() => {
-                                        progressContainer.style.display = 'none';
-                                    }, 2000);
+                                        if (progressContainer.style.display !== 'none') {
+                                            updateProgress(100, '✅ 加载中，请稍候...');
+                                            setTimeout(() => {
+                                                progressContainer.style.display = 'none';
+                                            }, 3000);
+                                        }
+                                    }, 60000);
                                     return; // 成功，退出
                                 }
                             }

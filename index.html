@@ -498,6 +498,8 @@
                             const checkResponse = await fetch(`${API_URL}/gradio_api/queue/data?session_hash=${sessionHash}`);
                             const text = await checkResponse.text();
                             
+                            console.log('轮询收到数据:', text.substring(0, 200)); // 显示前200个字符
+                            
                             if (text.includes('process_completed')) {
                                 clearInterval(pollInterval);
                                 const lines = text.split('\n');

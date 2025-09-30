@@ -486,13 +486,68 @@
                     }
                 };
                 
+                let pollInterval = null;
+                
                 eventSource.onerror = (error) => {
                     eventSource.close();
-                    console.error('EventSource error:', error);
-                    showError('连接失败，请重试');
-                    updateStatus('');
-                    document.getElementById('progressContainer').style.display = 'none';
-                    generateBtn.disabled = false;
+                    console.warn('SSE 连接断开，切换到轮询模式');
+                    
+                    // 切换到轮询模式检查结果
+                    pollInterval = setInterval(async () => {
+                        try {
+                            const checkResponse = await fetch(`${API_URL}/gradio_api/queue/data?session_hash=${sessionHash}`);
+                            const text = await checkResponse.text();
+                            
+                            if (text.includes('process_completed')) {
+                                clearInterval(pollInterval);
+                                const lines = text.split('\n');
+                                for (const line of lines) {
+                                    if (line.startsWith('data: ')) {
+                                        const jsonStr = line.substring(6);
+                                        try {
+                                            const data = JSON.parse(jsonStr);
+                                            if (data.msg === 'process_completed') {
+                                                console.log('轮询获取到完成消息:', data);
+                                                
+                                                // 处理结果（复制之前的逻辑）
+                                                if (data.output && data.output.data && data.output.data[0]) {
+                                                    const fileData = data.output.data[0];
+                                                    const glbUrl = fileData.url || fileData.path;
+                                                    
+                                                    if (glbUrl) {
+                                                        currentModelUrl = glbUrl.startsWith('http') ? glbUrl : `${API_URL}${glbUrl}`;
+                                                        document.getElementById('viewer').src = currentModelUrl;
+                                                        document.getElementById('viewerContainer').style.display = 'block';
+                                                        document.getElementById('actions').style.display = 'block';
+                                                        updateProgress(100, '✅ 完成！');
+                                                        updateStatus('🎉 生成成功！');
+                                                        setTimeout(() => {
+                                                            document.getElementById('progressContainer').style.display = 'none';
+                                                        }, 2000);
+                                                    }
+                                                }
+                                                generateBtn.disabled = false;
+                                                break;
+                                            }
+                                        } catch (e) {
+                                            // 忽略解析错误
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.error('轮询错误:', e);
+                        }
+                    }, 2000); // 每2秒检查一次
+                    
+                    // 10分钟后停止轮询
+                    setTimeout(() => {
+                        if (pollInterval) {
+                            clearInterval(pollInterval);
+                            showError('生成超时，请重试');
+                            generateBtn.disabled = false;
+                        }
+                    }, 600000);
                 };
 
             } catch (error) {

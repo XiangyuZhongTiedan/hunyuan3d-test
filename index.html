@@ -544,30 +544,61 @@
             }
         }
 
-        // 轮询获取结果
-        async function pollForResult(sessionHash, maxAttempts = 300) {
+        // 轮询获取结果 - 直接检查生成的文件
+        async function pollForResult(sessionHash, maxAttempts = 150) {
+            let lastEventId = null;
+            
             for (let i = 0; i < maxAttempts; i++) {
                 try {
-                    const response = await fetch(`${API_URL}/gradio_api/queue/status?session_hash=${sessionHash}`);
-                    const status = await response.json();
+                    // 尝试获取 /queue/data 的短时响应
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
                     
-                    console.log(`轮询 ${i+1}/${maxAttempts}:`, status);
-
-                    if (status.msg === 'process_completed' && status.success) {
-                        return status.output;
-                    } else if (status.msg === 'error') {
-                        throw new Error(status.output?.error || '生成失败');
+                    const response = await fetch(`${API_URL}/gradio_api/queue/data?session_hash=${sessionHash}`, {
+                        signal: controller.signal
+                    }).catch(e => null);
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response) {
+                        const text = await response.text();
+                        console.log(`轮询 ${i+1}: 收到数据`, text.substring(0, 200));
+                        
+                        // 解析 SSE 格式的数据
+                        const lines = text.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.substring(6));
+                                    
+                                    if (data.msg === 'process_completed') {
+                                        console.log('✅ 生成完成！', data);
+                                        return data.output;
+                                    } else if (data.msg === 'process_generating') {
+                                        console.log('⏳ 正在生成...', data);
+                                        if (data.progress_data) {
+                                            const progress = Math.min(40 + data.progress_data[0] / data.progress_data[1] * 50, 90);
+                                            updateProgress(progress, `生成中... ${data.progress_data[0]}/${data.progress_data[1]}`);
+                                        }
+                                    }
+                                } catch (e) {
+                                    // 忽略解析错误
+                                }
+                            }
+                        }
                     }
 
                     // 更新进度
-                    if (i % 5 === 0) {
+                    if (i % 3 === 0) {
                         const progress = Math.min(40 + (i / maxAttempts) * 50, 85);
-                        updateProgress(progress, `生成中... (${i}s)`);
+                        updateProgress(progress, `生成中... (${i * 2}s)`);
                     }
 
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 } catch (error) {
-                    console.warn(`轮询错误 (${i+1}):`, error);
+                    if (error.name !== 'AbortError') {
+                        console.warn(`轮询错误 (${i+1}):`, error);
+                    }
                 }
             }
             throw new Error('生成超时，请重试');

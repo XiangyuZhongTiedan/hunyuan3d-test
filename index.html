@@ -346,7 +346,8 @@
 
         const API_URL = 'https://mounting-divided-inexpensive-cast.trycloudflare.com';
         
-        let currentImage = null;
+        let currentImageBlob = null;  // 改为存储 Blob 而不是 base64
+        let currentImageDataURL = null;  // 用于预览显示
         let currentModelUrl = null;
 
         // DOM 元素
@@ -410,10 +411,14 @@
                 return;
             }
 
+            // 保存 Blob 用于 API 调用
+            currentImageBlob = file;
+            
+            // 读取 DataURL 用于预览
             const reader = new FileReader();
             reader.onload = (e) => {
-                currentImage = e.target.result;
-                preview.src = currentImage;
+                currentImageDataURL = e.target.result;
+                preview.src = currentImageDataURL;
                 previewContainer.style.display = 'block';
                 generateBtn.disabled = false;
                 hideError();
@@ -425,7 +430,7 @@
         generateBtn.addEventListener('click', generateModel);
 
         async function generateModel() {
-            if (!currentImage) {
+            if (!currentImageBlob) {
                 showError('请先上传图片！');
                 return;
             }
@@ -456,7 +461,7 @@
                 btnText.textContent = '生成中...';
 
                 const result = await client.predict("/shape_generation", {
-                    image: currentImage,  // base64 图片
+                    image: currentImageBlob,  // Blob 对象，不是 base64！
                     mv_image_front: null,
                     mv_image_back: null,
                     mv_image_left: null,

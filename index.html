@@ -513,21 +513,36 @@
 
                 if (result) {
                     updateProgress(90, '处理结果...');
-                    const fileData = result.data[0];
-                    currentModelUrl = fileData.url || fileData.path;
+                    console.log('完整结果:', result);
                     
-                    if (!currentModelUrl.startsWith('http')) {
-                        currentModelUrl = `${API_URL}${currentModelUrl}`;
+                    // result 可能是 {data: [...]} 或者直接是数组
+                    const dataArray = result.data || result;
+                    const fileData = Array.isArray(dataArray) ? dataArray[0] : dataArray;
+                    
+                    console.log('文件数据:', fileData);
+                    
+                    if (fileData) {
+                        currentModelUrl = fileData.url || fileData.path;
+                        
+                        if (currentModelUrl) {
+                            if (!currentModelUrl.startsWith('http')) {
+                                currentModelUrl = `${API_URL}${currentModelUrl}`;
+                            }
+
+                            updateProgress(100, '✅ 完成！');
+                            viewer.src = currentModelUrl;
+                            viewerContainer.style.display = 'block';
+                            actions.style.display = 'flex';
+
+                            setTimeout(() => {
+                                progressContainer.style.display = 'none';
+                            }, 2000);
+                        } else {
+                            throw new Error('未找到模型文件URL');
+                        }
+                    } else {
+                        throw new Error('返回数据格式错误');
                     }
-
-                    updateProgress(100, '✅ 完成！');
-                    viewer.src = currentModelUrl;
-                    viewerContainer.style.display = 'block';
-                    actions.style.display = 'flex';
-
-                    setTimeout(() => {
-                        progressContainer.style.display = 'none';
-                    }, 2000);
                 } else {
                     throw new Error('未获取到生成结果');
                 }
